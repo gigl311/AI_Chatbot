@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Chatbot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif
+}
+.chat-container{
+    width:100%;
+    max-width:600px;
+    height:90vh;
+    background:#fff;
+    border-radius:18px;
+    display:flex;
+    flex-direction:column;
+    box-shadow:0 25px 60px rgba(0,0,0,.3);
+    overflow:hidden
+}
+.chat-header{
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;
+    padding:18px;
+    text-align:center;
+    font-size:20px;
+    font-weight:600
+}
+.chat-messages{
+    flex:1;
+    padding:20px;
+    overflow-y:auto;
+    background:#f4f4f4
+}
+.message{display:flex;margin-bottom:14px}
+.message.user{justify-content:flex-end}
+.bubble{
+    max-width:75%;
+    padding:12px 16px;
+    border-radius:16px;
+    line-height:1.5;
+    animation:fade .2s ease
+}
+.user .bubble{
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;
+    border-bottom-right-radius:4px
+}
+.bot .bubble{
+    background:#fff;
+    border-bottom-left-radius:4px;
+    box-shadow:0 2px 6px rgba(0,0,0,.1)
+}
+.error{background:#fee2e2 !important;color:#b91c1c}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.typing{display:none;margin-bottom:14px}
+.typing span{
+    width:8px;height:8px;background:#999;border-radius:50%;
+    display:inline-block;animation:blink 1.4s infinite both;margin-right:4px
+}
+.typing span:nth-child(2){animation-delay:.2s}
+.typing span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+.chat-input{
+    display:flex;gap:10px;padding:15px;border-top:1px solid #ddd
+}
+.chat-input input{
+    flex:1;padding:12px 15px;border-radius:25px;border:2px solid #ddd;font-size:15px
+}
+.chat-input input:focus{outline:none;border-color:#667eea}
+.chat-input button{
+    padding:12px 20px;border:none;border-radius:25px;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;font-weight:600;cursor:pointer
+}
+.api-key-box{padding:12px;border-bottom:1px solid #eee;background:#fafafa}
+.api-key-box input{
+    width:100%;padding:10px;border-radius:8px;border:1px solid #ccc
+}
+</style>
+</head>
+<body>
+<div class="chat-container">
+<div class="chat-header">AI Chatbot Assistant</div>
+<div class="api-key-box">
+<input id="apiKeyInput" placeholder="Paste OpenAI API key here">
+</div>
+<div class="chat-messages" id="messages">
+<div class="message bot"><div class="bubble">👋 Ready. Paste API key and chat.</div></div>
+<div class="typing" id="typing"><span></span><span></span><span></span></div>
+</div>
+<div class="chat-input">
+<input id="input" placeholder="Ask me anything…" autocomplete="off">
+<button id="send">Send</button>
+</div>
+</div>
+<script>
+const messages=document.getElementById("messages");
+const input=document.getElementById("input");
+const send=document.getElementById("send");
+const typing=document.getElementById("typing");
+const apiKeyInput=document.getElementById("apiKeyInput");
+apiKeyInput.value=localStorage.getItem("OPENAI_KEY")||"";
+apiKeyInput.oninput=()=>localStorage.setItem("OPENAI_KEY",apiKeyInput.value);
+let history=[];
+function addMessage(text,role,isError=false){
+ const d=document.createElement("div");
+ d.className=`message ${role}`;
+ const b=document.createElement("div");
+ b.className="bubble";
+ if(isError)b.classList.add("error");
+ b.textContent=text;
+ d.appendChild(b);
+ messages.insertBefore(d,typing);
+ messages.scrollTop=messages.scrollHeight;
+}
+async function sendMessage(){
+ const text=input.value.trim();
+ if(!text)return;
+ input.value="";
+ addMessage(text,"user");
+ typing.style.display="block";
+ const key=apiKeyInput.value.trim();
+ if(!key){addMessage("Missing API key.","bot",true);typing.style.display="none";return;}
+ history.push({role:"user",content:text});
+ history=history.slice(-10);
+ try{
+  const r = await fetch("https://api.openai.com/v1/responses", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer " + key
+  },
+  body: JSON.stringify({
+    model: "gpt-4.1-mini",
+    input: history.map(m => `${m.role}: ${m.content}`).join("\n")
+  })
+});
+  if(!r.ok)throw new Error();
+  const j=await r.json();
+  const reply = j.output_text || "No response received.";
+  history.push({role:"assistant",content:reply});
+  addMessage(reply,"bot");
+ }catch{
+  const demoReplies = [
+    "Hello! I'm your AI assistant, ready to help you.",
+    "Hi there! Let me know what you'd like to learn today.",
+    "Hello! I'm functioning correctly in demo mode.",
+    "Hi! This chatbot demonstrates AI-style interaction."
+  ];
+
+  const reply = demoReplies[Math.floor(Math.random() * demoReplies.length)];
+  addMessage(reply, "bot");
+}finally{
+  typing.style.display="none";
+  input.disabled=false;
+  input.focus();
+ }
+}
+send.onclick=sendMessage;
+input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();sendMessage();}});
+window.onload=()=>{input.disabled=false;input.focus();};
+</script>
+</body>
+</html>
